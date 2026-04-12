@@ -2,7 +2,7 @@
 
 **AI-powered fraud detection, case investigation, and human-in-the-loop review — built on local, on-premise AI via Ollama. No transaction data ever leaves your network.**
 
-![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white) ![LangChain](https://img.shields.io/badge/LangChain-0.2+-1C3C3C?logo=langchain&logoColor=white) ![Ollama](https://img.shields.io/badge/Ollama-Local_AI-white?logo=ollama) ![XGBoost](https://img.shields.io/badge/XGBoost-2.0+-orange) ![Streamlit](https://img.shields.io/badge/Streamlit-1.35+-FF4B4B?logo=streamlit&logoColor=white) ![FastAPI](https://img.shields.io/badge/FastAPI-0.111+-009688?logo=fastapi&logoColor=white) ![NetworkX](https://img.shields.io/badge/NetworkX-3.0+-blue) ![Build](https://img.shields.io/badge/Build-Passing-brightgreen?logo=github-actions&logoColor=white) ![License](https://img.shields.io/badge/License-MIT-lightgrey)
+![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white) ![LangChain](https://img.shields.io/badge/LangChain-0.2+-1C3C3C?logo=langchain&logoColor=white) ![Ollama](https://img.shields.io/badge/Ollama-Local_AI-white?logo=ollama) ![XGBoost](https://img.shields.io/badge/XGBoost-2.0+-orange) ![Streamlit](https://img.shields.io/badge/Streamlit-1.35+-FF4B4B?logo=streamlit&logoColor=white) ![FastAPI](https://img.shields.io/badge/FastAPI-0.111+-009688?logo=fastapi&logoColor=white) ![NetworkX](https://img.shields.io/badge/NetworkX-3.0+-blue) ![License](https://img.shields.io/badge/License-MIT-lightgrey)
 
 ---
 
@@ -18,13 +18,16 @@
 - [Getting Started](#getting-started)
 - [Core Modules](#core-modules)
 - [Model Training](#model-training)
+- [Scaling Considerations](#scaling-considerations)
 - [Deployment](#deployment)
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
 - [Roadmap](#roadmap)
 - [Business Value](#business-value)
+- [Part of the IQ Portfolio](#part-of-the-iq-portfolio)
 - [Contributing](#contributing)
 - [About](#about)
+- [Disclaimer](#disclaimer)
 - [License](#license)
 
 ---
@@ -64,8 +67,6 @@ Financial and transactional data is among the most sensitive data an organisatio
 |---|---|---|
 | ![review](docs/images/review_dashboard.png) | ![heatmap](docs/images/risk_heatmap.png) | ![report](docs/images/case_report.png) |
 
-> **Demo / Walkthrough:** [Insert Link to GIF or YouTube Video Tour Here]
-> 
 > No live demo hosted yet — see [Quick Start](#quick-start) to run locally in ~5 minutes.
 
 ---
@@ -269,8 +270,7 @@ sentineliq/
 
 - Python 3.10+
 - [Ollama](https://ollama.com) installed locally (free, runs on your machine)
-- **Minimum hardware:** 8GB+ RAM recommended (~5-6GB VRAM is best for `qwen2.5:7b-instruct`). Apple Silicon Macs or dedicated GPUs perform best. 
-> *Tip: If you have constrained hardware, you can update `.env` to use a smaller model like `phi3:mini`.*
+- Minimum hardware: 8GB+ RAM recommended (Apple Silicon Macs or dedicated GPUs perform best)
 
 ### 1. Clone the repository
 
@@ -520,12 +520,63 @@ python scripts/generate_data.py --events 10000 --fraud-rate 0.015 --output data/
 
 ---
 
+## Scaling Considerations
+
+SentinelIQ is architected for clarity and portfolio demonstration. The current stack handles thousands of events comfortably in a local or small-team setting. Below is an honest assessment of where the architecture would need to evolve for production-grade, high-volume deployments — and what that path looks like.
+
+### Current Limitations
+
+**Batch ingestion** — the scheduler-based pipeline (every 15 minutes) introduces latency that is unacceptable for real-time fraud detection. A transaction flagged 14 minutes after it occurs is already too late.
+
+**In-process ML scoring** — XGBoost and Isolation Forest models are loaded directly into the FastAPI process. Under high concurrency this creates memory pressure and blocks the API on inference calls.
+
+**ChromaDB** — excellent for prototyping, but runs as a single-node in-process store with no native horizontal scaling, replication, or high-availability guarantees.
+
+**NetworkX graph** — the account-device-IP graph is held entirely in memory. At millions of accounts with dense relationships, this exhausts RAM and graph traversal becomes prohibitively slow.
+
+**Ollama (local LLM)** — a single Ollama instance handles roughly 5–10 concurrent investigations. Under load, the investigation queue would back up and block case report generation.
+
+**Streamlit frontend** — Streamlit is a single-process tool suited to internal dashboards and is not designed for high-concurrency production traffic.
+
+---
+
+### Production Architecture Path
+
+The table below maps each current component to its production equivalent and the reason for the change:
+
+| Component | Current (Portfolio) | Production Equivalent | Why |
+|---|---|---|---|
+| Ingestion | Batch scheduler (15 min) | Apache Kafka / Pulsar | Real-time event streaming, replay, fault tolerance |
+| Feature store | Ad-hoc pandas | Feast / Tecton | Consistent features between training and inference |
+| ML serving | In-process XGBoost | MLflow / BentoML serving | Parallelised inference, versioning, A/B testing |
+| Vector store | ChromaDB | Pinecone / Weaviate / pgvector | Horizontal scaling, replication, high availability |
+| Graph database | NetworkX (in-memory) | Neo4j / Memgraph | Billions of edges, efficient traversal queries |
+| LLM inference | Ollama (local, sync) | Async queue (Celery / RQ) + hosted LLM | Non-blocking investigations, rate limiting, retries |
+| API | FastAPI single instance | FastAPI + load balancer + multiple workers | Horizontal scaling, zero-downtime deploys |
+| Frontend | Streamlit | React / Next.js | High-concurrency UI, proper auth, richer UX |
+| Database | Flat files / ChromaDB | PostgreSQL + Redis cache | Durable storage, fast lookups, full audit trail |
+| Observability | None | Prometheus + Grafana + Langfuse | Metrics, alerting, LLM trace visibility |
+| Auth | None | OAuth2 / OIDC | Role-based access, audit compliance |
+
+---
+
+### Indicative Throughput Targets
+
+| Scale | Transactions / day | Suitable Architecture |
+|---|---|---|
+| Demo / small team | < 10,000 | Current stack (this repo) |
+| SME deployment | 10k – 500k | FastAPI workers + managed vector DB + async LLM queue |
+| Enterprise / high volume | 500k – 10M+ | Full streaming pipeline (Kafka) + dedicated ML serving + graph DB |
+
+---
+
+> **Note:** For freelance or consulting engagements, SentinelIQ provides a working, demonstrable foundation. Scaling to production would be scoped as a separate architecture and infrastructure engagement, layering the components above onto this core detection and investigation logic.
+
+---
+
 ## Deployment
 
 ### Docker (local)
-
-> [!IMPORTANT]
-> If running via Docker Desktop on macOS or Windows, ensure you allocate **at least 8-10GB of memory** in the Docker settings, otherwise the Ollama model processes may silently fail or crash.
 
 ```bash
 docker-compose up --build
@@ -626,19 +677,16 @@ Covers the RAG pipeline, ensemble scorer, LangGraph agent, and review feedback l
 - [x] Human-in-the-loop review dashboard
 - [x] FastAPI backend
 - [x] Streamlit dashboard
-- [x] Graph feature engineering (NetworkX)
-- [x] SMOTE for class imbalance
-- [x] SHAP explanations per case
-- [x] Reviewer feedback loop into RAG
-- [ ] Real-time streaming ingestion (Kafka & Fast Feature Store)
+- [ ] Graph feature engineering (NetworkX)
+- [ ] SMOTE for class imbalance
+- [ ] SHAP explanations per case
+- [ ] Reviewer feedback loop into RAG
+- [ ] Real-time streaming ingestion (Kafka)
 - [ ] Fine-tuned embedding model for fraud domain
 - [ ] Multi-reviewer workflow with role-based access
 - [ ] Webhook integration with payment processors
 - [ ] Historical backtesting dashboard
 - [ ] Email / Slack escalation notifications
-- [ ] Agent Tracing & Evaluation (Langfuse / LangSmith)
-- [ ] Scalable Graph Database integration (Neo4j / Memgraph replacing NetworkX)
-- [ ] Enterprise Auth (OAuth2 / OIDC for API and Dashboard)
 
 ---
 
@@ -677,8 +725,8 @@ Contributions are welcome! Please:
 
 1. **Open an issue** to discuss your proposed change before starting work
 2. **Fork the repo** and create a feature branch (`feature/your-feature-name`)
-3. **Follow existing code style** — use type hints, docstrings, and keep modules focused. (Standard tools like `black` and `flake8/ruff` are recommended).
-4. **Add or update tests** for any new functionality in `tests/`. Mock LLM calls if needed to avoid requiring local Ollama for basic test runs.
+3. **Follow existing code style** — use type hints, docstrings, and keep modules focused
+4. **Add or update tests** for any new functionality in `tests/`
 5. **Submit a pull request** with a clear description of what changed and why
 
 ---
@@ -696,12 +744,6 @@ Built by **Rajan Mehta** as a portfolio project demonstrating end-to-end AI engi
 ## Version
 
 `v1.0.0` — Initial release with ensemble ML scoring, graph features, LangGraph investigation agent, human-in-the-loop review, RAG feedback loop, FastAPI backend, and Streamlit dashboard.
-
----
-
-## Disclaimer
-
-**Educational Purpose Only.** This project and its architecture are intended for educational and demonstrative purposes. The default configuration uses synthetic data. Before deploying any system to process real transactional data or Personally Identifiable Information (PII) in an enterprise environment, ensure you conduct thorough security, compliance, and legal audits (e.g., GDPR, PCI-DSS).
 
 ---
 
