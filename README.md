@@ -524,6 +524,9 @@ python scripts/generate_data.py --events 10000 --fraud-rate 0.015 --output data/
 
 ### Docker (local)
 
+> [!IMPORTANT]
+> If running via Docker Desktop on macOS or Windows, ensure you allocate **at least 8-10GB of memory** in the Docker settings, otherwise the Ollama model processes may silently fail or crash.
+
 ```bash
 docker-compose up --build
 ```
@@ -627,12 +630,15 @@ Covers the RAG pipeline, ensemble scorer, LangGraph agent, and review feedback l
 - [x] SMOTE for class imbalance
 - [x] SHAP explanations per case
 - [x] Reviewer feedback loop into RAG
-- [ ] Real-time streaming ingestion (Kafka)
+- [ ] Real-time streaming ingestion (Kafka & Fast Feature Store)
 - [ ] Fine-tuned embedding model for fraud domain
 - [ ] Multi-reviewer workflow with role-based access
 - [ ] Webhook integration with payment processors
 - [ ] Historical backtesting dashboard
 - [ ] Email / Slack escalation notifications
+- [ ] Agent Tracing & Evaluation (Langfuse / LangSmith)
+- [ ] Scalable Graph Database integration (Neo4j / Memgraph replacing NetworkX)
+- [ ] Enterprise Auth (OAuth2 / OIDC for API and Dashboard)
 
 ---
 
