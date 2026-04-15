@@ -27,7 +27,6 @@
 - [Part of the IQ Portfolio](#part-of-the-iq-portfolio)
 - [Contributing](#contributing)
 - [About](#about)
-- [Disclaimer](#disclaimer)
 - [License](#license)
 
 ---
@@ -737,13 +736,13 @@ Built by **Rajan Mehta** as a portfolio project demonstrating end-to-end AI engi
 
 **Skills demonstrated:** LangChain · LangGraph · ChromaDB · XGBoost · Isolation Forest · NetworkX · SHAP · SMOTE · FastAPI · Streamlit · Python · Docker · Prompt engineering · Graph ML
 
-🔗 [Portfolio](https://your-portfolio.com) · [LinkedIn](https://linkedin.com/in/rajan-mehta)
+🔗 [LinkedIn](https://linkedin.com/in/rajan-mehta) · [GitHub](https://github.com/rajan0860)
 
 ---
 
 ## Version
 
-`v1.0.0` — Initial release with ensemble ML scoring, graph features, LangGraph investigation agent, human-in-the-loop review, RAG feedback loop, FastAPI backend, and Streamlit dashboard.
+`v0.1.0` — Project scaffolding, architecture design, and documentation. Core implementation in progress.
 
 ---
 
