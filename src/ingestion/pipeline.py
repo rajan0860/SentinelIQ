@@ -252,9 +252,16 @@ class IngestionPipeline:
             f"{len(flagged_events):,} flagged (≥ {_RISK_THRESHOLD_HIGH})"
         )
 
-        # ── Step 6: Persist scored events for the API ─────────────────────────
-        logger.info("STEP 6: Saving scored events to disk...")
+        # ── Step 6: Persist raw events and scored events for the API ─────────────
+        logger.info("STEP 6: Saving events to disk...")
         try:
+            # Save raw events to data/raw/ for audit trail
+            raw_path = Path("data/raw") / f"events_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            raw_path.parent.mkdir(parents=True, exist_ok=True)
+            df.to_csv(raw_path, index=False)
+            logger.info(f"Raw events saved → {raw_path}")
+
+            # Save scored events for the API
             out_path = Path(scored_output_path)
             out_path.parent.mkdir(parents=True, exist_ok=True)
             # Sort by risk score descending so the API returns highest-risk first
@@ -263,7 +270,7 @@ class IngestionPipeline:
                 json.dump(scored_events, f, indent=2, default=str)
             logger.info(f"Scored events saved → {out_path}")
         except Exception as e:
-            msg = f"Failed to save scored events: {e}"
+            msg = f"Failed to save events: {e}"
             logger.error(msg)
             summary["errors"].append(msg)
 

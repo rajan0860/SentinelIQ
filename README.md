@@ -676,10 +676,13 @@ Covers the RAG pipeline, ensemble scorer, LangGraph agent, and review feedback l
 - [x] Human-in-the-loop review dashboard
 - [x] FastAPI backend
 - [x] Streamlit dashboard
-- [ ] Graph feature engineering (NetworkX)
-- [ ] SMOTE for class imbalance
-- [ ] SHAP explanations per case
-- [ ] Reviewer feedback loop into RAG
+- [x] Graph feature engineering (NetworkX — degree centrality, component size, shared device/IP counts)
+- [x] SMOTE for class imbalance (training set only — no data leakage)
+- [x] SHAP explanations per case (TreeExplainer, top-2 feature contributions)
+- [x] Reviewer feedback loop into RAG (decisions embedded back into ChromaDB)
+- [x] Reusable dashboard components (metrics bar, risk badge, case card)
+- [x] Jupyter notebooks (RAG exploration, ensemble training, graph features)
+- [x] Raw event audit trail (timestamped CSV snapshots in data/raw/)
 - [ ] Real-time streaming ingestion (Kafka)
 - [ ] Fine-tuned embedding model for fraud domain
 - [ ] Multi-reviewer workflow with role-based access
@@ -742,7 +745,7 @@ Built by **Rajan Mehta** as a portfolio project demonstrating end-to-end AI engi
 
 ## Version
 
-`v0.1.0` — Project scaffolding, architecture design, and documentation. Core implementation in progress.
+`v0.2.0` — Core implementation complete. All primary features implemented: ensemble ML scoring with SHAP, LangGraph investigation agent, RAG pipeline with feedback loop, graph feature engineering, full-stack API and dashboard, Jupyter notebooks, and reusable UI components.
 
 ---
 
