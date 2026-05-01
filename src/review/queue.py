@@ -1,8 +1,10 @@
 """
-Queue Module
-============
-Manages the lifecycle of cases waiting for human review.
-Uses a simple JSON file for persistence during prototyping.
+Review Queue Module
+===================
+Manages the lifecycle of investigation cases awaiting human review.
+Provides persistent storage using a local JSON-based queue, allowing
+fraud reports to be buffered between the agentic investigation and
+analyst decision-making.
 """
 
 import json
@@ -21,7 +23,7 @@ DEFAULT_QUEUE_PATH = os.path.join(
 
 class ReviewQueueManager:
     """
-    Manages the review queue of cases.
+    Handles the storage, retrieval, and removal of pending review cases.
     """
     def __init__(self, queue_path: str = DEFAULT_QUEUE_PATH):
         self.queue_path = queue_path

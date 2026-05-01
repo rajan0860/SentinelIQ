@@ -1,8 +1,10 @@
 """
-Feedback Module
-===============
-Handles logging human decisions and feeding them back into the
-ChromaDB vector store to improve future LangGraph agent retrievals.
+Review Feedback Module
+======================
+Handles the processing of human review decisions. This module is responsible
+for closing the "learning loop" by taking qualitative human input, mapping
+it to standardized outcome labels, and updating the ChromaDB RAG knowledge
+base so future investigations can benefit from human-verified truth.
 """
 
 import logging
@@ -18,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class ReviewFeedbackHandler:
     """
-    Processes human review decisions and updates the RAG knowledge base.
+    Orchestrates the ingestion of human analyst decisions into the RAG system.
     """
     def __init__(self):
         self.queue_manager = ReviewQueueManager()

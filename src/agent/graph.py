@@ -1,8 +1,10 @@
 """
-Graph Module
-============
-Assembles the agent nodes into a LangGraph StateGraph.
-Handles conditional routing based on the ML flag.
+Investigation Agent Module
+==========================
+This module orchestrates the multi-node fraud investigation workflow using LangGraph.
+It assembles the analytical nodes (Flag, Retrieve, Analyse, Report) into a
+StateGraph and handles the conditional routing logic based on the initial
+risk assessment from the ML ensemble.
 """
 
 import logging

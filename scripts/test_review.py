@@ -1,5 +1,8 @@
 """
 Test Script for Review Queue and Feedback Loop
+==============================================
+This script provides a standalone way to verify the Human-in-the-Loop
+and RAG feedback loop without running the full pytest suite.
 """
 
 import sys
@@ -14,10 +17,12 @@ from src.review.queue import ReviewQueueManager
 from src.review.feedback import ReviewFeedbackHandler
 from src.rag.retriever import retrieve_similar_cases
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 def run_test():
-    print("=== Testing Review Queue & Feedback Loop ===")
+    print("\n" + "="*60)
+    print("  SentinelIQ — Testing Review Queue & Feedback Loop")
+    print("="*60)
     
     # 1. Mock a case report from the agent
     mock_case = {
@@ -34,7 +39,7 @@ def run_test():
     qm.add_case(mock_case)
     
     pending = qm.get_pending_cases()
-    print(f"Pending cases in queue: {len(pending)}")
+    print(f"    Pending cases in queue: {len(pending)}")
     
     # 3. Simulate human reviewer decision
     print("\n[2] Human Reviewer approves the case as Confirmed Fraud...")
@@ -48,22 +53,26 @@ def run_test():
     }
     
     success = handler.log_decision(decision_payload)
-    print(f"Log Decision Success: {success}")
+    print(f"    Log Decision Success: {success}")
     
     # Verify removal from queue
     pending_after = qm.get_pending_cases()
-    print(f"Pending cases after review: {len(pending_after)}")
+    print(f"    Pending cases after review: {len(pending_after)}")
     
     # 4. Verify RAG feedback loop worked by querying ChromaDB
     print("\n[3] Querying RAG to see if the system learned the new case...")
     query = "Account shares a device and is a known emulator."
     retrieved = retrieve_similar_cases(query, k=1)
     
-    print("\nTop Retrieved Case:")
+    print("\n    Top Retrieved Case:")
     if retrieved:
-        pprint.pprint(retrieved[0])
+        pprint.pprint(retrieved[0], indent=8)
     else:
-        print("Nothing retrieved.")
+        print("    Nothing retrieved.")
         
+    print("\n" + "="*60)
+    print("  Verification Complete ✓")
+    print("="*60 + "\n")
+
 if __name__ == "__main__":
     run_test()
