@@ -24,10 +24,12 @@ from fastapi import APIRouter, HTTPException
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Path written by IngestionPipeline.run() — relative to project root
+# Resolve the scored events path relative to the project root so the API
+# works correctly regardless of the working directory it is launched from.
+_PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 _SCORED_EVENTS_PATH = os.getenv(
     "SCORED_EVENTS_PATH",
-    "data/processed/scored_events.json",
+    str(_PROJECT_ROOT / "data" / "processed" / "scored_events.json"),
 )
 
 

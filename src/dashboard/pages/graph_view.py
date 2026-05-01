@@ -9,18 +9,16 @@ import streamlit.components.v1 as components
 from pyvis.network import Network  # type: ignore
 import pickle
 import os
+from pathlib import Path
 
 st.set_page_config(page_title="Graph View | SentinelIQ", layout="wide")
 
 st.title("🕸️ Relationship Graph Visualisation")
 st.markdown("Interactive network showing links between Accounts, Devices, and IP Addresses.")
 
-GRAPH_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
-    "data",
-    "graphs",
-    "account_graph.pkl"
-)
+# Resolve path relative to this file so it works from any working directory
+_PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+GRAPH_PATH = str(_PROJECT_ROOT / "data" / "graphs" / "account_graph.pkl")
 
 @st.cache_data
 def load_graph():

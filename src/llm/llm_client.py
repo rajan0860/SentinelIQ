@@ -23,19 +23,18 @@ logger = logging.getLogger(__name__)
 def get_llm() -> ChatOllama:
     """
     Initialise and return the ChatOllama model instance.
-    Uses OLLAMA_BASE_URL and OLLAMA_MODEL from environment variables.
+    Uses OLLAMA_BASE_URL, OLLAMA_MODEL, and LLM_TEMPERATURE from environment variables.
     """
-    base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-    model_name = os.getenv("OLLAMA_MODEL", "qwen2.5:7b-instruct")
-    
-    logger.info(f"Initialising ChatOllama with model: {model_name} at {base_url}")
-    
-    # We set temperature=0 for deterministic, analytical outputs
-    # essential for fraud investigation.
+    base_url    = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    model_name  = os.getenv("OLLAMA_MODEL", "qwen2.5:7b-instruct")
+    temperature = float(os.getenv("LLM_TEMPERATURE", "0.0"))
+
+    logger.info(f"Initialising ChatOllama: model={model_name}, base_url={base_url}, temperature={temperature}")
+
     return ChatOllama(
         base_url=base_url,
         model=model_name,
-        temperature=0.0,
+        temperature=temperature,
     )
 
 def get_embeddings() -> OllamaEmbeddings:

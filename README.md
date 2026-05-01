@@ -666,6 +666,10 @@ pytest tests/
 
 Covers the RAG pipeline, ensemble scorer, LangGraph agent, and review feedback loop.
 
+> **Note:** `test_scorer.py` requires trained model artifacts. Run `python scripts/train_model.py` before running the full test suite, or run `pytest tests/ -k "not scorer"` to skip scorer tests in environments without model artifacts.
+
+> **Note:** The dashboard shows realistic mock data on the Live Feed and Risk Heatmap pages until the first ingestion pipeline run (`python scripts/ingest_and_run.py`). Mock events are clearly labelled in the `explanation` field.
+
 ---
 
 ## Roadmap

@@ -47,13 +47,17 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger(__name__)
 
 # Default paths — all relative to project root
-_DEFAULT_EVENTS_PATH        = "data/synthetic/events.csv"
-_DEFAULT_GRAPH_PATH         = "data/graphs/account_graph.pkl"
-_DEFAULT_SCORED_OUTPUT_PATH = "data/processed/scored_events.json"
-_DEFAULT_HISTORICAL_CASES   = "data/synthetic/historical_cases.json"
-_DEFAULT_XGB_PATH           = os.getenv("XGB_MODEL_PATH", "data/models/xgboost_fraud.json")
-_DEFAULT_ISO_PATH           = os.getenv("ISO_MODEL_PATH", "data/models/isolation_forest.pkl")
-_DEFAULT_FEATURE_NAMES_PATH = "data/models/feature_names.pkl"
+# Resolve all default paths relative to the project root so the pipeline
+# works correctly regardless of which directory it is invoked from.
+_PROJECT_ROOT = Path(__file__).parent.parent.parent
+
+_DEFAULT_EVENTS_PATH        = str(_PROJECT_ROOT / "data" / "synthetic" / "events.csv")
+_DEFAULT_GRAPH_PATH         = str(_PROJECT_ROOT / "data" / "graphs" / "account_graph.pkl")
+_DEFAULT_SCORED_OUTPUT_PATH = str(_PROJECT_ROOT / "data" / "processed" / "scored_events.json")
+_DEFAULT_HISTORICAL_CASES   = str(_PROJECT_ROOT / "data" / "synthetic" / "historical_cases.json")
+_DEFAULT_XGB_PATH           = os.getenv("XGB_MODEL_PATH", str(_PROJECT_ROOT / "data" / "models" / "xgboost_fraud.json"))
+_DEFAULT_ISO_PATH           = os.getenv("ISO_MODEL_PATH", str(_PROJECT_ROOT / "data" / "models" / "isolation_forest.pkl"))
+_DEFAULT_FEATURE_NAMES_PATH = str(_PROJECT_ROOT / "data" / "models" / "feature_names.pkl")
 
 _RISK_THRESHOLD_HIGH     = float(os.getenv("RISK_THRESHOLD_HIGH", "0.75"))
 _RISK_THRESHOLD_CRITICAL = float(os.getenv("RISK_THRESHOLD_CRITICAL", "0.90"))
@@ -255,9 +259,10 @@ class IngestionPipeline:
         # ── Step 6: Persist raw events and scored events for the API ─────────────
         logger.info("STEP 6: Saving events to disk...")
         try:
-            # Save raw events to data/raw/ for audit trail
-            raw_path = Path("data/raw") / f"events_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv"
-            raw_path.parent.mkdir(parents=True, exist_ok=True)
+            # Save raw events to data/raw/ for audit trail (project-root-relative)
+            raw_dir = _PROJECT_ROOT / "data" / "raw"
+            raw_dir.mkdir(parents=True, exist_ok=True)
+            raw_path = raw_dir / f"events_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv"
             df.to_csv(raw_path, index=False)
             logger.info(f"Raw events saved → {raw_path}")
 

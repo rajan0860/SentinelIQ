@@ -41,9 +41,13 @@ def submit_review_decision(decision: ReviewDecision, case_id: str = Path(...)):
     """
     if case_id != decision.case_id:
         raise HTTPException(status_code=400, detail="Path case_id must match body case_id")
-        
+
+    # Explicit 404 before attempting the feedback log
+    if not queue_manager.get_case(case_id):
+        raise HTTPException(status_code=404, detail=f"Case '{case_id}' not found in review queue.")
+
     success = feedback_handler.log_decision(decision.model_dump())
     if not success:
-        raise HTTPException(status_code=500, detail="Failed to log decision. Case might not exist.")
-        
+        raise HTTPException(status_code=500, detail="Failed to log decision.")
+
     return {"status": "success", "message": f"Decision for {case_id} logged to RAG knowledge base."}
