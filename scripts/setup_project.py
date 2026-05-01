@@ -16,6 +16,7 @@ DIRECTORIES = [
     "data/models",
     "data/graphs",
     "data/processed",
+    "data/raw",
     "data/chroma",
     "logs",
 ]
