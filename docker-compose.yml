@@ -1,0 +1,78 @@
+version: "3.9"
+
+# ── SentinelIQ — Docker Compose ───────────────────────────────────────────────
+#
+# Services:
+#   api        — FastAPI backend  (http://localhost:8000)
+#   dashboard  — Streamlit UI     (http://localhost:8501)
+#
+# Shared volume mounts keep model artifacts, the graph, ChromaDB, and
+# scored events persistent across container restarts.
+#
+# Usage:
+#   docker-compose up --build          # first run
+#   docker-compose up                  # subsequent runs
+#   docker-compose down                # stop and remove containers
+#
+# Prerequisites (run once on the host before docker-compose up):
+#   python scripts/generate_data.py
+#   python scripts/train_model.py
+#   python scripts/ingest_and_run.py --embed-cases
+#
+# Note: Ollama must be running on the HOST machine (not inside Docker).
+# The default OLLAMA_BASE_URL=http://host.docker.internal:11434 routes
+# requests from inside the container to the host's Ollama process.
+
+services:
+
+  # ── FastAPI Backend ──────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sentineliq:latest
+    container_name: sentineliq_api
+    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # Route Ollama calls to the host machine where Ollama is running
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    volumes:
+      # Persist all data directories so artifacts survive container restarts
+      - ./data:/app/data
+      # Mount source for --reload to pick up code changes during development
+      - ./src:/app/src
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ── Streamlit Dashboard ───────────────────────────────────────────────────────
+  dashboard:
+    image: sentineliq:latest
+    container_name: sentineliq_dashboard
+    command: >
+      streamlit run src/dashboard/app.py
+      --server.port 8501
+      --server.address 0.0.0.0
+      --server.headless true
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    environment:
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    volumes:
+      - ./data:/app/data
+      - ./src:/app/src
+      - ./lib:/app/lib
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
