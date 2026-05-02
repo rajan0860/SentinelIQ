@@ -242,9 +242,12 @@ sentineliq/
 │       └── components/               # Reusable UI components
 │
 ├── scripts/
+│   ├── setup_project.py              # Environment validation + directory setup
 │   ├── generate_data.py              # Synthetic data generation (Faker)
+│   ├── train_model.py                # One-shot model training script
 │   ├── ingest_and_run.py             # Manual trigger for ingestion + agent
-│   └── train_model.py                # One-shot model training script
+│   ├── inspect_graph.py              # Relationship graph analysis utility
+│   └── test_review.py                # Standalone review loop verification
 │
 ├── tests/
 │   ├── test_rag.py

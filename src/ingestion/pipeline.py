@@ -51,6 +51,16 @@ logger = logging.getLogger(__name__)
 # works correctly regardless of which directory it is invoked from.
 _PROJECT_ROOT = Path(__file__).parent.parent.parent
 
+# ── Persistent Logging Setup ──────────────────────────────────────────────────
+_LOG_DIR = _PROJECT_ROOT / "logs"
+_LOG_DIR.mkdir(parents=True, exist_ok=True)
+_LOG_FILE = _LOG_DIR / "pipeline.log"
+
+file_handler = logging.FileHandler(_LOG_FILE)
+file_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+logger.addHandler(file_handler)
+logger.info(f"Persistent logging initialised → {_LOG_FILE}")
+
 _DEFAULT_EVENTS_PATH        = str(_PROJECT_ROOT / "data" / "synthetic" / "events.csv")
 _DEFAULT_GRAPH_PATH         = str(_PROJECT_ROOT / "data" / "graphs" / "account_graph.pkl")
 _DEFAULT_SCORED_OUTPUT_PATH = str(_PROJECT_ROOT / "data" / "processed" / "scored_events.json")
