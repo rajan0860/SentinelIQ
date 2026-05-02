@@ -32,6 +32,7 @@ faker>=25.0.0
 python-dotenv>=1.0.0
 pyvis>=0.3.2
 requests>=2.31.0
+apscheduler>=3.10.0
 
 # Notebooks
 jupyter>=1.0.0

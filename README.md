@@ -77,6 +77,7 @@ git clone https://github.com/rajan0860/sentineliq.git
 cd sentineliq
 pip install -r requirements.txt
 cp .env.example .env                         # Add your config
+python scripts/setup_project.py              # Validate setup + check Ollama
 python scripts/generate_data.py
 python scripts/train_model.py
 python scripts/ingest_and_run.py             # Ingest + embed + run agent
@@ -85,6 +86,8 @@ streamlit run src/dashboard/app.py           # Launch dashboard
 ```
 
 > **Note:** The `streamlit run` command must be run from the project root so that relative imports and data paths resolve correctly.
+
+> **Note:** The dashboard shows realistic mock data on the Live Feed and Risk Heatmap pages until the first ingestion pipeline run. Mock events are clearly labelled in the `explanation` field.
 
 > See [Getting Started](#getting-started) for the full step-by-step walkthrough.
 
@@ -357,22 +360,26 @@ Dashboard: [http://localhost:8501](http://localhost:8501)
 Combines XGBoost (supervised classification) and Isolation Forest (unsupervised anomaly detection) for robust fraud flagging. SMOTE handles the severe class imbalance typical of real fraud datasets.
 
 ```python
-from src.ml.ensemble import EnsembleScorer
+from src.ml.scorer import FraudScorer
 
-scorer = EnsembleScorer(
+scorer = FraudScorer(
     xgb_path="data/models/xgboost_fraud.json",
-    iso_path="data/models/isolation_forest.pkl"
+    iso_path="data/models/isolation_forest.pkl",
+    feature_names_path="data/models/feature_names.pkl",
 )
 
-result = scorer.score({
+result = scorer.score_event({
     "transaction_amount": 4850.00,
     "account_age_days": 12,
     "device_change_count": 3,
     "ip_country_mismatch": 1,
     "velocity_1hr": 8,
-    "graph_degree_centrality": 0.91,
     "avg_txn_amount_30d": 320.00,
     "failed_login_count_24hr": 4,
+    "degree_centrality": 0.91,
+    "component_size": 6,
+    "shared_device_count": 3,
+    "ip_reuse_count": 3,
 })
 # {
 #   "risk_score": 0.93,
@@ -525,7 +532,7 @@ SentinelIQ is architected for clarity and portfolio demonstration. The current s
 
 ### Current Limitations
 
-**Batch ingestion** — the scheduler-based pipeline (every 15 minutes) introduces latency that is unacceptable for real-time fraud detection. A transaction flagged 14 minutes after it occurs is already too late.
+**Batch ingestion** — the APScheduler-based pipeline (configurable via `AGENT_RUN_INTERVAL`, default 15 minutes) introduces latency that is unacceptable for real-time fraud detection. A transaction flagged 14 minutes after it occurs is already too late.
 
 **In-process ML scoring** — XGBoost and Isolation Forest models are loaded directly into the FastAPI process. Under high concurrency this creates memory pressure and blocks the API on inference calls.
 

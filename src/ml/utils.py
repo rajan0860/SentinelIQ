@@ -65,6 +65,20 @@ def apply_smote(
     """
     neg_count = int((y == 0).sum())
     pos_count = int((y == 1).sum())
+
+    # Guard: SMOTE requires at least 2 samples in the minority class and
+    # both classes must be present. Skip gracefully if not.
+    if pos_count < 2:
+        logger.warning(
+            f"SMOTE skipped — minority class has only {pos_count} sample(s). "
+            "Returning original data unchanged."
+        )
+        return np.array(X), np.array(y)
+
+    if neg_count == 0:
+        logger.warning("SMOTE skipped — no majority class samples found.")
+        return np.array(X), np.array(y)
+
     logger.info(
         f"Applying SMOTE — before: {neg_count:,} legit / {pos_count:,} fraud "
         f"(ratio 1:{neg_count // pos_count})"

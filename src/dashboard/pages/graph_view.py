@@ -33,39 +33,50 @@ def load_graph():
 G = load_graph()
 
 if G:
-    # Pyvis struggles with massive graphs in the browser. 
-    # We will only render a subset (e.g., the largest connected component) or a sample.
-    st.info(f"Full Graph Size: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges.")
-    
+    st.info(f"Full Graph: {G.number_of_nodes():,} nodes, {G.number_of_edges():,} edges.")
+
+    # Sidebar controls
+    with st.sidebar:
+        st.subheader("Graph Controls")
+        max_nodes = st.slider("Max nodes to render", min_value=50, max_value=500, value=200, step=50)
+        st.caption("Larger values may slow down rendering.")
+
     with st.spinner("Generating interactive network..."):
-        # Take a subgraph of the first 200 nodes for performance
-        subgraph_nodes = list(G.nodes())[:200]
+        subgraph_nodes = list(G.nodes())[:max_nodes]
         sub_g = G.subgraph(subgraph_nodes)
-        
-        # Initialize pyvis network
+
         net = Network(height="600px", width="100%", bgcolor="#0f1115", font_color="white")
-        
-        # Add nodes with colors based on type
+        net.barnes_hut()  # Better layout for large graphs
+
+        # node_type is the key used by GraphBuilder
         for node, data in sub_g.nodes(data=True):
-            node_type = data.get("type", "unknown")
-            color = "#8b949e" # default
+            node_type = data.get("node_type", "unknown")
+            color = "#8b949e"
             if node_type == "account": color = "#58a6ff"
             elif node_type == "device": color = "#d29922"
-            elif node_type == "ip": color = "#f85149"
-            
-            net.add_node(node, label=str(node), title=f"Type: {node_type}", color=color)
-            
+            elif node_type == "ip":     color = "#f85149"
+
+            net.add_node(node, label=str(node), title=f"Type: {node_type}\nID: {node}", color=color)
+
         for source, target in sub_g.edges():
             net.add_edge(source, target, color="#30363d")
-            
-        # Generate HTML
-        path = '/tmp/graph.html'
+
+        path = "/tmp/sentineliq_graph.html"
         net.save_graph(path)
-        
-        # Read HTML and render in Streamlit
-        with open(path, 'r', encoding='utf-8') as f:
+
+        with open(path, "r", encoding="utf-8") as f:
             html_string = f.read()
-            
+
         components.html(html_string, height=620)
+
+    # Legend
+    st.markdown(
+        "🔵 **Account** &nbsp;&nbsp; 🟠 **Device** &nbsp;&nbsp; 🔴 **IP Address**",
+        unsafe_allow_html=True,
+    )
 else:
-    st.warning("Graph data not found. Ensure the ingestion pipeline has run.")
+    st.warning(
+        "⚠️ Graph data not found.\n\n"
+        "**Solution:** Run the ingestion pipeline to build the graph:\n"
+        "```\npython scripts/ingest_and_run.py\n```"
+    )

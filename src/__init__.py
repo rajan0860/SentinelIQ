@@ -11,3 +11,9 @@ Package structure:
     src.rag         ChromaDB vector store, retriever, and prompts
     src.review      Human-in-the-loop review queue and RAG feedback loop
 """
+
+from pathlib import Path
+
+# Single source of truth for the project root directory.
+# Import this anywhere: `from src import PROJECT_ROOT`
+PROJECT_ROOT = Path(__file__).parent.parent
