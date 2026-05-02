@@ -343,3 +343,122 @@ class TestPipelineWithRealData:
         assert summary["events_loaded"] > 0
         assert summary["events_scored"] > 0
         assert summary["errors"] == []
+
+
+# ── EventLoader tests ─────────────────────────────────────────────────────────
+
+class TestEventLoader:
+
+    def test_load_events_returns_dataframe(self, tmp_path):
+        events_path = _make_minimal_events_csv(tmp_path)
+        from src.ingestion.event_loader import EventLoader
+        loader = EventLoader()
+        df = loader.load_events(events_path)
+        import pandas as pd
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) == 25  # 20 legit + 5 fraud
+
+    def test_load_events_raises_on_missing_file(self):
+        from src.ingestion.event_loader import EventLoader
+        loader = EventLoader()
+        with pytest.raises(FileNotFoundError):
+            loader.load_events("nonexistent/path/events.csv")
+
+    def test_load_events_raises_on_missing_columns(self, tmp_path):
+        import pandas as pd
+        # CSV missing required 'account_id' column
+        bad_csv = str(tmp_path / "bad.csv")
+        pd.DataFrame([{"event_id": "E1", "timestamp": "2026-01-01"}]).to_csv(bad_csv, index=False)
+        from src.ingestion.event_loader import EventLoader
+        loader = EventLoader()
+        with pytest.raises(ValueError):
+            loader.load_events(bad_csv)
+
+    def test_load_events_drops_rows_with_null_ids(self, tmp_path):
+        import pandas as pd
+        events_path = _make_minimal_events_csv(tmp_path, n_legit=5, n_fraud=0)
+        df = pd.read_csv(events_path)
+        # Inject a row with null account_id
+        null_row = df.iloc[0].copy()
+        null_row["account_id"] = None
+        df = pd.concat([df, pd.DataFrame([null_row])], ignore_index=True)
+        bad_path = str(tmp_path / "with_nulls.csv")
+        df.to_csv(bad_path, index=False)
+
+        from src.ingestion.event_loader import EventLoader
+        loader = EventLoader()
+        result = loader.load_events(bad_path)
+        assert len(result) == 5  # null row dropped
+
+
+# ── GraphBuilder tests ────────────────────────────────────────────────────────
+
+class TestGraphBuilder:
+
+    def test_build_graph_creates_nodes(self, tmp_path):
+        import pandas as pd
+        events_path = _make_minimal_events_csv(tmp_path, n_legit=5, n_fraud=0)
+        df = pd.read_csv(events_path)
+
+        from src.ingestion.graph_builder import GraphBuilder
+        builder = GraphBuilder()
+        G = builder.build_from_dataframe(df)
+
+        assert G.number_of_nodes() > 0
+        assert G.number_of_edges() > 0
+
+    def test_build_graph_prefixes_nodes(self, tmp_path):
+        import pandas as pd
+        events_path = _make_minimal_events_csv(tmp_path, n_legit=3, n_fraud=0)
+        df = pd.read_csv(events_path)
+
+        from src.ingestion.graph_builder import GraphBuilder
+        builder = GraphBuilder()
+        G = builder.build_from_dataframe(df)
+
+        nodes = list(G.nodes())
+        assert any(n.startswith("ACC:") for n in nodes), "No ACC: nodes found"
+        assert any(n.startswith("DEV:") for n in nodes), "No DEV: nodes found"
+        assert any(n.startswith("IP:")  for n in nodes), "No IP: nodes found"
+
+    def test_build_graph_deduplicates_edges(self, tmp_path):
+        """Same account+device pair appearing 10 times = 1 edge, not 10."""
+        import pandas as pd
+        rows = []
+        for i in range(10):
+            rows.append({
+                "event_id": f"E{i}", "account_id": "ACC-00001",
+                "timestamp": "2026-01-01", "transaction_amount": 100.0,
+                "account_age_days": 365, "device_id": "DEV-SAME",
+                "ip_address": "1.2.3.4", "ip_country_mismatch": 0,
+                "device_change_count": 0, "velocity_1hr": 1,
+                "avg_txn_amount_30d": 100.0, "failed_login_count_24hr": 0,
+                "is_fraud": 0, "fraud_type": None,
+            })
+        df = pd.DataFrame(rows)
+        path = str(tmp_path / "dup.csv")
+        df.to_csv(path, index=False)
+
+        from src.ingestion.graph_builder import GraphBuilder
+        builder = GraphBuilder()
+        G = builder.build_from_dataframe(df)
+
+        # Should have exactly 1 ACC-DEV edge and 1 ACC-IP edge
+        assert G.number_of_edges() == 2
+
+    def test_save_and_reload_graph(self, tmp_path):
+        import pandas as pd, pickle
+        events_path = _make_minimal_events_csv(tmp_path, n_legit=3, n_fraud=0)
+        df = pd.read_csv(events_path)
+        graph_path = str(tmp_path / "test_graph.pkl")
+
+        from src.ingestion.graph_builder import GraphBuilder
+        builder = GraphBuilder()
+        G = builder.build_from_dataframe(df)
+        builder.save_graph(graph_path)
+
+        assert Path(graph_path).exists()
+        with open(graph_path, "rb") as f:
+            G2 = pickle.load(f)
+        assert G2.number_of_nodes() == G.number_of_nodes()
+        assert G2.number_of_edges() == G.number_of_edges()

@@ -172,3 +172,54 @@ class TestFraudScorer:
         result = fraud_scorer.score_event(LEGIT_EVENT)
         for key in ["risk_score", "risk_level", "xgb_prob", "iso_anom", "flags", "explanation"]:
             assert key in result, f"Missing key: {key}"
+
+
+# ── ML Utils tests ────────────────────────────────────────────────────────────
+
+class TestMLUtils:
+
+    def test_compute_class_weights_returns_float(self):
+        import numpy as np
+        from src.ml.utils import compute_class_weights
+        y = np.array([0, 0, 0, 0, 1])  # 4 negatives, 1 positive
+        weight = compute_class_weights(y)
+        assert isinstance(weight, float)
+        assert weight == 4.0
+
+    def test_compute_class_weights_raises_on_no_positives(self):
+        import numpy as np
+        from src.ml.utils import compute_class_weights
+        y = np.array([0, 0, 0, 0])  # all negatives
+        with pytest.raises(ValueError):
+            compute_class_weights(y)
+
+    def test_apply_smote_balances_classes(self):
+        import numpy as np
+        import pandas as pd
+        from src.ml.utils import apply_smote
+        X = pd.DataFrame(np.random.rand(100, 5))
+        y = np.array([0] * 95 + [1] * 5)  # 95 negatives, 5 positives
+        X_res, y_res = apply_smote(X, y)
+        # After SMOTE, classes should be balanced
+        assert (y_res == 0).sum() == (y_res == 1).sum()
+
+    def test_apply_smote_skips_when_minority_too_small(self):
+        import numpy as np
+        import pandas as pd
+        from src.ml.utils import apply_smote
+        X = pd.DataFrame(np.random.rand(10, 5))
+        y = np.array([0] * 9 + [1] * 1)  # only 1 positive sample
+        X_res, y_res = apply_smote(X, y)
+        # SMOTE should skip and return original data
+        assert len(X_res) == len(X)
+        assert len(y_res) == len(y)
+
+    def test_apply_smote_skips_when_no_majority_class(self):
+        import numpy as np
+        import pandas as pd
+        from src.ml.utils import apply_smote
+        X = pd.DataFrame(np.random.rand(5, 5))
+        y = np.array([1, 1, 1, 1, 1])  # all positives
+        X_res, y_res = apply_smote(X, y)
+        # SMOTE should skip
+        assert len(X_res) == len(X)
