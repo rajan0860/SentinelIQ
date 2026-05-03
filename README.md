@@ -227,7 +227,7 @@ sentineliq/
 │   │   ├── main.py                   # FastAPI app entry point
 │   │   ├── routes/
 │   │   │   ├── cases.py              # GET /cases, POST /cases/{id}/review
-│   │   │   ├── events.py             # GET /events/risk
+│   │   │   ├── events.py             # GET /events/risk, GET /events/{id}
 │   │   │   └── query.py              # POST /query (NL interface)
 │   │   └── schemas.py                # Pydantic request/response models
 │   │

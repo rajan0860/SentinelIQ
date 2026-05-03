@@ -7,8 +7,6 @@ Natural Language interface for interacting with the fraud knowledge base.
 import streamlit as st
 import requests
 
-st.set_page_config(page_title="Knowledge Base | SentinelIQ", layout="wide")
-
 API_URL = "http://localhost:8000"
 
 st.title("🧠 Knowledge Base Query")

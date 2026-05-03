@@ -12,8 +12,6 @@ import streamlit as st
 import requests
 import pandas as pd
 
-st.set_page_config(page_title="Live Feed | SentinelIQ", layout="wide")
-
 from src.dashboard.components.metrics_bar import render_metrics_bar
 from src.dashboard.components.risk_badge import risk_badge_html
 

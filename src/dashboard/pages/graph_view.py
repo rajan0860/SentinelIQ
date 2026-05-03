@@ -11,8 +11,6 @@ import pickle
 import os
 from pathlib import Path
 
-st.set_page_config(page_title="Graph View | SentinelIQ", layout="wide")
-
 st.title("🕸️ Relationship Graph Visualisation")
 st.markdown("Interactive network showing links between Accounts, Devices, and IP Addresses.")
 

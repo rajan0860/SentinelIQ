@@ -9,8 +9,6 @@ import requests
 import pandas as pd
 import plotly.express as px
 
-st.set_page_config(page_title="Risk Analytics | SentinelIQ", layout="wide")
-
 API_URL = "http://localhost:8000"
 
 st.title("📈 Risk Analytics & Heatmap")

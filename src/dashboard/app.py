@@ -4,6 +4,10 @@ Streamlit Main Application
 Entry point for the SentinelIQ Dashboard.
 Sets up the multi-page navigation and injects custom CSS
 for a premium dark mode UI.
+
+NOTE: st.set_page_config() is called ONLY here. Individual page files
+must NOT call it — Streamlit only allows one call per session and it
+must be the first Streamlit command executed.
 """
 
 import streamlit as st
@@ -69,7 +73,54 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🛡️ SentinelIQ Command Center")
-st.markdown("Welcome to the SentinelIQ fraud operations platform. Select a view from the sidebar.")
+# ── Sidebar navigation ────────────────────────────────────────────────────────
+with st.sidebar:
+    st.markdown("## 🛡️ SentinelIQ")
+    st.markdown("---")
+    page = st.radio(
+        "Navigate",
+        options=[
+            "🏠 Home",
+            "📡 Live Feed",
+            "📈 Risk Heatmap",
+            "🕸️ Graph View",
+            "⚖️ Review Queue",
+            "🧠 Knowledge Base",
+        ],
+        label_visibility="collapsed",
+    )
+    st.markdown("---")
+    st.caption("v0.2.0 · Local AI · No data leaves your network")
 
-st.info("Ensure the FastAPI backend is running on `http://localhost:8000`.")
+# ── Page routing ──────────────────────────────────────────────────────────────
+if page == "🏠 Home":
+    st.title("🛡️ SentinelIQ Command Center")
+    st.markdown("Welcome to the SentinelIQ fraud operations platform. Select a view from the sidebar.")
+    st.info("Ensure the FastAPI backend is running on `http://localhost:8000`.")
+
+    st.markdown("---")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown("### 📡 Live Feed")
+        st.markdown("Monitor incoming transactions and their ML risk scores in real time.")
+    with col2:
+        st.markdown("### ⚖️ Review Queue")
+        st.markdown("Review LangGraph investigation reports and submit approve / escalate / dismiss decisions.")
+    with col3:
+        st.markdown("### 🧠 Knowledge Base")
+        st.markdown("Query historical fraud patterns using natural language over the RAG knowledge base.")
+
+elif page == "📡 Live Feed":
+    from src.dashboard.pages import live_feed  # noqa: F401  — executes the page module
+
+elif page == "📈 Risk Heatmap":
+    from src.dashboard.pages import risk_heatmap  # noqa: F401
+
+elif page == "🕸️ Graph View":
+    from src.dashboard.pages import graph_view  # noqa: F401
+
+elif page == "⚖️ Review Queue":
+    from src.dashboard.pages import review_queue  # noqa: F401
+
+elif page == "🧠 Knowledge Base":
+    from src.dashboard.pages import query  # noqa: F401
