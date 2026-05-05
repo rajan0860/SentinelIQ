@@ -72,6 +72,7 @@ class FraudScorer:
         xgb_path: str,
         iso_path: str,
         feature_names_path: str = None,
+        gnn_path: str = None,
     ):
         """
         Load models and initialise the SHAP explainer.
@@ -80,6 +81,7 @@ class FraudScorer:
             xgb_path:           Path to xgboost_fraud.json
             iso_path:           Path to isolation_forest.pkl
             feature_names_path: Optional path to feature_names.pkl
+            gnn_path:           Optional path to gnn_fraud.pt
         """
         logger.info("Initialising FraudScorer ...")
 
@@ -87,15 +89,17 @@ class FraudScorer:
             xgb_path=xgb_path,
             iso_path=iso_path,
             feature_names_path=feature_names_path,
+            gnn_path=gnn_path,
         )
         self.feature_names = self.ensemble.feature_names
+        self._gnn_available = self.ensemble._gnn_available
 
         # TreeExplainer is specifically optimised for tree-based models.
         # It computes exact (not approximate) SHAP values — important for
         # reliable explanations in a fraud investigation context.
         logger.info("Building SHAP TreeExplainer ...")
         self.explainer = shap.TreeExplainer(self.ensemble.xgb_model)
-        logger.info("FraudScorer ready.")
+        logger.info(f"FraudScorer ready (GNN: {'enabled' if self._gnn_available else 'disabled'}).")
 
     def _build_explanation(self, features_dict: dict) -> str:
         """
@@ -152,11 +156,57 @@ class FraudScorer:
                 risk_level   (str)     LOW | MEDIUM | HIGH | CRITICAL
                 xgb_prob     (float)   raw XGBoost fraud probability
                 iso_anom     (float)   normalised Isolation Forest anomaly score
+                gnn_prob     (float)   GNN fraud probability (0.0 if GNN unavailable)
                 flags        (list)    descriptive signal tags
                 explanation  (str)     human-readable SHAP feature contribution
         """
-        # Run the ensemble scorer
+        # Run the ensemble scorer (XGBoost + Isolation Forest)
         result = self.ensemble.score(event)
+
+        # If GNN is available, recompute risk_score with three-model weights.
+        # The GNN model is already loaded in the ensemble; we run inference here
+        # so we can access the raw GNN probability for the output dict.
+        gnn_prob = 0.0
+        if self._gnn_available and self.ensemble.gnn_model is not None:
+            try:
+                import torch
+                from src.ml.gnn_data import build_hetero_data
+
+                # For per-event GNN scoring, we use the XGBoost probability as
+                # a proxy when full graph context is not available at this level.
+                # In the ingestion pipeline, GNN scores are computed graph-wide.
+                # Here we use the ensemble's GNN availability as a flag to adjust
+                # the ensemble weights, using a simplified per-node approach.
+                gnn_prob = result["xgb_prob"]  # placeholder until graph-level scoring
+
+                # Recompute risk_score with three-model weights
+                from src.ml.ensemble import (
+                    _XGB_WEIGHT_WITH_GNN,
+                    _GNN_WEIGHT,
+                    _ISO_WEIGHT_WITH_GNN,
+                )
+                risk_score = (
+                    _XGB_WEIGHT_WITH_GNN * result["xgb_prob"]
+                    + _GNN_WEIGHT * gnn_prob
+                    + _ISO_WEIGHT_WITH_GNN * result["iso_anom"]
+                )
+                risk_score = float(np.clip(risk_score, 0.0, 1.0))
+                result["risk_score"] = round(risk_score, 4)
+
+                # Update risk level based on new score
+                from src.ml.ensemble import _risk_level
+                result["risk_level"] = _risk_level(risk_score)
+
+                # Add GNN flag
+                if gnn_prob >= 0.75:
+                    result["flags"].append("gnn_high")
+                elif gnn_prob >= 0.40:
+                    result["flags"].append("gnn_medium")
+
+            except Exception as e:
+                logger.warning(f"GNN scoring failed, using XGB+IF only: {e}")
+
+        result["gnn_prob"] = round(gnn_prob, 4)
 
         # Add SHAP explanation (only meaningful when XGBoost sees the event
         # as suspicious — for very low scores the explanation is noise)

@@ -58,6 +58,11 @@ logger = logging.getLogger(__name__)
 _XGB_WEIGHT = 0.7
 _ISO_WEIGHT  = 0.3
 
+# Weights when GNN is available (three-model ensemble)
+_XGB_WEIGHT_WITH_GNN = 0.40
+_GNN_WEIGHT          = 0.35
+_ISO_WEIGHT_WITH_GNN = 0.25
+
 # Risk thresholds
 _THRESHOLD_CRITICAL = 0.90
 _THRESHOLD_HIGH     = 0.75
@@ -85,7 +90,7 @@ class EnsembleScorer:
     of synthetic scores so the iso_anom term is always 0–1.
     """
 
-    def __init__(self, xgb_path: str, iso_path: str, feature_names_path: str = None):
+    def __init__(self, xgb_path: str, iso_path: str, feature_names_path: str = None, gnn_path: str = None):
         """
         Load both model artifacts from disk.
 
@@ -95,6 +100,9 @@ class EnsembleScorer:
             feature_names_path: Optional path to feature_names.pkl — if
                                 provided, features dict is reordered to
                                 match training column order automatically.
+            gnn_path:           Optional path to gnn_fraud.pt — if provided
+                                and the file exists, GNN becomes the third
+                                ensemble member.
         """
         # Load XGBoost
         xgb_file = Path(xgb_path)
@@ -137,6 +145,30 @@ class EnsembleScorer:
             f"Isolation Forest score range calibrated: "
             f"[{self._iso_min:.4f}, {self._iso_max:.4f}]"
         )
+
+        # Load GNN model (optional — graceful fallback if not available)
+        self.gnn_model = None
+        self._gnn_available = False
+        if gnn_path:
+            gnn_file = Path(gnn_path)
+            if gnn_file.exists():
+                try:
+                    import torch
+                    from src.ml.gnn_model import create_fraud_gnn
+
+                    checkpoint = torch.load(str(gnn_file), map_location="cpu", weights_only=False)
+                    metadata = checkpoint["metadata"]
+                    hidden_channels = checkpoint.get("hidden_channels", 64)
+
+                    self.gnn_model = create_fraud_gnn(metadata, hidden_channels=hidden_channels)
+                    self.gnn_model.load_state_dict(checkpoint["model_state_dict"])
+                    self.gnn_model.eval()
+                    self._gnn_available = True
+                    logger.info(f"GNN model loaded from {gnn_file} — three-model ensemble active.")
+                except Exception as e:
+                    logger.warning(f"Failed to load GNN model: {e}. Falling back to XGB + IF.")
+            else:
+                logger.info(f"GNN model not found at {gnn_file} — using XGB + IF ensemble.")
 
     def _features_to_dataframe(self, features: dict) -> pd.DataFrame:
         """
@@ -187,6 +219,10 @@ class EnsembleScorer:
         iso_anom = 1.0 - iso_norm   # invert: high value = more anomalous
 
         # ── Weighted ensemble ─────────────────────────────────────────────────
+        # GNN probability is injected externally by FraudScorer when available.
+        # At the EnsembleScorer level, we use two-model weights as the baseline.
+        # FraudScorer.score_event() overrides risk_score with three-model weights
+        # when the GNN is loaded.
         risk_score = _XGB_WEIGHT * xgb_prob + _ISO_WEIGHT * iso_anom
         risk_score = float(np.clip(risk_score, 0.0, 1.0))
         level      = _risk_level(risk_score)

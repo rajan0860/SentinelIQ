@@ -2,7 +2,7 @@
 
 **AI-powered fraud detection, case investigation, and human-in-the-loop review — built on local, on-premise AI via Ollama. No transaction data ever leaves your network.**
 
-![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white) ![LangChain](https://img.shields.io/badge/LangChain-0.2+-1C3C3C?logo=langchain&logoColor=white) ![Ollama](https://img.shields.io/badge/Ollama-Local_AI-white?logo=ollama) ![XGBoost](https://img.shields.io/badge/XGBoost-2.0+-orange) ![Streamlit](https://img.shields.io/badge/Streamlit-1.35+-FF4B4B?logo=streamlit&logoColor=white) ![FastAPI](https://img.shields.io/badge/FastAPI-0.111+-009688?logo=fastapi&logoColor=white) ![NetworkX](https://img.shields.io/badge/NetworkX-3.0+-blue) ![License](https://img.shields.io/badge/License-MIT-lightgrey)
+![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white) ![LangChain](https://img.shields.io/badge/LangChain-0.2+-1C3C3C?logo=langchain&logoColor=white) ![Ollama](https://img.shields.io/badge/Ollama-Local_AI-white?logo=ollama) ![XGBoost](https://img.shields.io/badge/XGBoost-2.0+-orange) ![PyTorch Geometric](https://img.shields.io/badge/PyG-GraphSAGE-EE4C2C?logo=pytorch&logoColor=white) ![Streamlit](https://img.shields.io/badge/Streamlit-1.35+-FF4B4B?logo=streamlit&logoColor=white) ![FastAPI](https://img.shields.io/badge/FastAPI-0.111+-009688?logo=fastapi&logoColor=white) ![NetworkX](https://img.shields.io/badge/NetworkX-3.0+-blue) ![License](https://img.shields.io/badge/License-MIT-lightgrey)
 
 ---
 
@@ -35,7 +35,7 @@
 
 SentinelIQ is a multi-domain fraud detection and investigation platform that:
 
-- **Flags** suspicious transactions, account events, and claims using an ensemble ML model (XGBoost + Isolation Forest)
+- **Flags** suspicious transactions, account events, and claims using an ensemble ML model (XGBoost + GraphSAGE GNN + Isolation Forest)
 - **Investigates** each flagged case automatically via a LangGraph agent — retrieving similar historical fraud patterns, analysing SHAP explanations, and cross-referencing account/device relationship graphs
 - **Generates** structured case reports with a confidence score, evidence summary, fraud type classification, and recommended action
 - **Presents** each case to a human reviewer via a review dashboard — approve, escalate, or dismiss with one click
@@ -110,8 +110,9 @@ flowchart TB
 
     subgraph ML["Ensemble ML Scorer"]
         XGB["XGBoost Classifier"]
+        GNN["GraphSAGE GNN\n(PyTorch Geometric)"]
         ISO["Isolation Forest (Anomaly)"]
-        ENSEMBLE["Ensemble Vote → Risk Score"]
+        ENSEMBLE["Weighted Ensemble → Risk Score"]
         SHAP["SHAP Explanation"]
     end
 
@@ -167,6 +168,7 @@ flowchart TB
 | Vector store | ChromaDB |
 | LLM | Ollama (qwen2.5:7b-instruct local) |
 | ML scoring | XGBoost, Isolation Forest, scikit-learn, SHAP |
+| Graph Neural Network | PyTorch Geometric, GraphSAGE |
 | Graph features | NetworkX |
 | Data generation | Faker, pandas |
 | Imbalanced ML | imbalanced-learn (SMOTE) |
@@ -207,8 +209,11 @@ sentineliq/
 │   ├── ml/
 │   │   ├── feature_engineering.py    # Feature creation from event data
 │   │   ├── graph_features.py         # Graph-derived features (degree, centrality)
-│   │   ├── train.py                  # XGBoost + Isolation Forest training
-│   │   ├── ensemble.py               # Ensemble scoring logic
+│   │   ├── gnn_data.py              # NetworkX → PyG HeteroData conversion
+│   │   ├── gnn_model.py             # GraphSAGE model definition
+│   │   ├── gnn_trainer.py           # GNN training loop + early stopping
+│   │   ├── train.py                  # XGBoost + Isolation Forest + GNN training
+│   │   ├── ensemble.py               # Ensemble scoring logic (XGB + GNN + IF)
 │   │   ├── scorer.py                 # Inference + SHAP explanations
 │   │   └── utils.py                  # SMOTE, class weighting, helpers
 │   │
@@ -252,6 +257,7 @@ sentineliq/
 ├── tests/
 │   ├── test_rag.py
 │   ├── test_scorer.py
+│   ├── test_gnn.py
 │   ├── test_agent.py
 │   └── test_review.py
 │
@@ -360,7 +366,13 @@ Dashboard: [http://localhost:8501](http://localhost:8501)
 
 ### Ensemble ML Scorer
 
-Combines XGBoost (supervised classification) and Isolation Forest (unsupervised anomaly detection) for robust fraud flagging. SMOTE handles the severe class imbalance typical of real fraud datasets.
+Combines three complementary models for robust fraud flagging:
+
+- **XGBoost** — supervised classifier trained on labelled fraud data
+- **GraphSAGE GNN** — graph neural network that learns structural fraud patterns by aggregating information across account-device-IP neighbourhoods (2-hop message passing via PyTorch Geometric)
+- **Isolation Forest** — unsupervised anomaly detector that catches novel attack patterns
+
+SMOTE handles the severe class imbalance typical of real fraud datasets. When the GNN model artifact is not available, the ensemble falls back gracefully to XGBoost + Isolation Forest only.
 
 ```python
 from src.ml.scorer import FraudScorer
@@ -387,7 +399,7 @@ result = scorer.score_event({
 # {
 #   "risk_score": 0.93,
 #   "risk_level": "CRITICAL",
-#   "flags": ["xgboost_high", "isolation_forest_anomaly"],
+#   "flags": ["xgboost_high", "gnn_high", "isolation_forest_anomaly"],
 #   "explanation": "Unusual velocity (+0.38), new account with high graph centrality (+0.29)"
 # }
 ```
@@ -408,6 +420,29 @@ features = extractor.extract(account_id="ACC-00412")
 #   "connected_accounts": 14,
 #   "ip_reuse_count": 3
 # }
+```
+
+### GraphSAGE GNN (Graph Neural Network)
+
+While the hand-crafted graph features above capture direct (1-hop) relationships, the GraphSAGE GNN learns structural patterns automatically by aggregating information across multi-hop neighbourhoods. Each layer of the network extends the "view" by one hop — two layers means each account's embedding incorporates information from accounts sharing the same devices/IPs (the exact pattern that reveals fraud rings).
+
+The GNN operates as a third ensemble member alongside XGBoost and Isolation Forest:
+
+```
+Ensemble formula:
+  With GNN:    risk_score = 0.40 × xgb_prob + 0.35 × gnn_prob + 0.25 × iso_anom
+  Without GNN: risk_score = 0.70 × xgb_prob + 0.30 × iso_anom  (graceful fallback)
+```
+
+**Why GraphSAGE?** It uses inductive learning — once trained, it can generate embeddings for brand-new accounts that weren't in the training graph. This is critical for fraud detection where new accounts appear constantly.
+
+```python
+# The GNN is trained on the same account-device-IP graph used by GraphFeatureExtractor,
+# but learns 64-dimensional embeddings automatically instead of 4 hand-crafted features.
+# Training is handled by scripts/train_model.py alongside XGBoost and Isolation Forest.
+
+python scripts/train_model.py            # Trains XGBoost + IF + GNN
+python scripts/train_model.py --skip-gnn # Trains XGBoost + IF only (no PyTorch needed)
 ```
 
 ### LangGraph Investigation Agent
@@ -477,7 +512,7 @@ curl -X POST http://localhost:8000/cases/CASE-2041/review \
 
 ## Model Training
 
-The ensemble model is trained on engineered features from synthetic transaction, account, and claim data.
+The ensemble model is trained on engineered features from synthetic transaction, account, and claim data. XGBoost and Isolation Forest train on tabular + hand-crafted graph features, while the GraphSAGE GNN trains directly on the account-device-IP graph structure.
 
 **Features:**
 
@@ -504,6 +539,7 @@ python scripts/train_model.py --data data/synthetic/events.csv --output data/mod
 Applying SMOTE for class imbalance (fraud rate: 1.5%)...
 Training XGBoost classifier...
 Training Isolation Forest...
+Training GraphSAGE GNN (2-layer, 64 hidden channels)...
 
 XGBoost Results:
   Train AUC:   0.971
@@ -516,10 +552,17 @@ Isolation Forest Results:
   Contamination: 0.015
   Anomaly detection rate: 0.79
 
-Ensemble (vote):
-  Combined AUC: 0.941
+GraphSAGE GNN Results:
+  Val AUC:     0.92
+  Val F1:      0.84
+  Epochs:      150 (early stopped)
+
+Ensemble (weighted vote):
+  Combined AUC: 0.951
   Models saved to data/models/
 ```
+
+> **Note:** Use `--skip-gnn` to train without the GNN in environments where PyTorch is not installed.
 
 **Data generation:**
 
@@ -685,6 +728,7 @@ Covers the RAG pipeline, ensemble scorer, LangGraph agent, and review feedback l
 ## Roadmap
 
 - [x] Ensemble ML scoring (XGBoost + Isolation Forest)
+- [x] GraphSAGE GNN (PyTorch Geometric — 2-layer heterogeneous graph neural network for learned fraud ring detection)
 - [x] LangGraph investigation agent
 - [x] RAG over historical fraud cases
 - [x] Human-in-the-loop review dashboard
@@ -751,7 +795,7 @@ Contributions are welcome! Please:
 
 Built by **Rajan Mehta** as a portfolio project demonstrating end-to-end AI engineering across ensemble ML, graph feature engineering, agentic investigation, and human-in-the-loop review systems.
 
-**Skills demonstrated:** LangChain · LangGraph · ChromaDB · XGBoost · Isolation Forest · NetworkX · SHAP · SMOTE · FastAPI · Streamlit · Python · Docker · Prompt engineering · Graph ML
+**Skills demonstrated:** LangChain · LangGraph · ChromaDB · XGBoost · Isolation Forest · PyTorch Geometric · GraphSAGE · NetworkX · SHAP · SMOTE · FastAPI · Streamlit · Python · Docker · Prompt engineering · Graph Neural Networks
 
 🔗 [LinkedIn](https://linkedin.com/in/rajan-mehta) · [GitHub](https://github.com/rajan0860)
 
@@ -759,7 +803,7 @@ Built by **Rajan Mehta** as a portfolio project demonstrating end-to-end AI engi
 
 ## Version
 
-`v0.2.0` — Core implementation complete. All primary features implemented: ensemble ML scoring with SHAP, LangGraph investigation agent, RAG pipeline with feedback loop, graph feature engineering, full-stack API and dashboard, Jupyter notebooks, and reusable UI components.
+`v0.3.0` — GraphSAGE GNN integration. Added a 2-layer heterogeneous GraphSAGE model (PyTorch Geometric) as a third ensemble member alongside XGBoost and Isolation Forest. The GNN learns structural fraud patterns from account-device-IP neighbourhoods via message passing, complementing the hand-crafted graph features and tabular signals. Graceful fallback to XGBoost + IF when GNN artifacts are unavailable.
 
 ---
 

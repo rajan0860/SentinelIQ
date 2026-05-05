@@ -60,6 +60,7 @@ def train(
     data_path: str,
     graph_path: str,
     output_dir: str,
+    skip_gnn: bool = False,
 ) -> dict:
     """
     Full training pipeline — returns a dict of evaluation metrics.
@@ -207,6 +208,32 @@ def train(
         "xgb_f1": round(xgb_f1, 4),
         "iso_detection_rate": round(float(iso_detection_rate), 4),
     }
+
+    # ── 9. Train GraphSAGE GNN (optional) ─────────────────────────────────────
+    if not skip_gnn:
+        logger.info("=" * 60)
+        logger.info("STEP 7: Training GraphSAGE GNN ...")
+        logger.info("=" * 60)
+        try:
+            from src.ml.gnn_trainer import train_gnn
+
+            gnn_metrics = train_gnn(
+                events_path=data_path,
+                graph_path=graph_path,
+                output_dir=output_dir,
+                epochs=200,
+            )
+            metrics.update(gnn_metrics)
+            logger.info("GNN training complete.")
+        except ImportError as e:
+            logger.warning(
+                f"GNN training skipped — PyTorch/PyG not installed: {e}\n"
+                "Install with: pip install torch torch-geometric"
+            )
+        except Exception as e:
+            logger.warning(f"GNN training failed: {e}")
+    else:
+        logger.info("STEP 7: GNN training skipped (--skip-gnn flag).")
 
     print("\n" + "=" * 50)
     print("  Training Complete — Summary")

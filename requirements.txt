@@ -7,6 +7,10 @@ imbalanced-learn>=0.11.0
 shap>=0.42.0
 networkx>=3.0
 
+# Graph Neural Network
+torch>=2.0.0
+torch-geometric>=2.5.0
+
 # LLM & RAG
 langchain>=0.2.0
 langgraph>=0.1.0

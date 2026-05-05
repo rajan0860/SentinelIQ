@@ -95,11 +95,13 @@ class IngestionPipeline:
 
     def _load_scorer(self) -> FraudScorer:
         if self._scorer is None:
-            logger.info("Loading FraudScorer (XGBoost + Isolation Forest + SHAP)...")
+            gnn_path = str(_PROJECT_ROOT / "data" / "models" / "gnn_fraud.pt")
+            logger.info("Loading FraudScorer (XGBoost + Isolation Forest + SHAP + optional GNN)...")
             self._scorer = FraudScorer(
                 xgb_path=_DEFAULT_XGB_PATH,
                 iso_path=_DEFAULT_ISO_PATH,
                 feature_names_path=_DEFAULT_FEATURE_NAMES_PATH,
+                gnn_path=gnn_path,
             )
         return self._scorer
 

@@ -50,6 +50,11 @@ def parse_args() -> argparse.Namespace:
         default="data/models/",
         help="Directory to save model artifacts (default: data/models/)",
     )
+    parser.add_argument(
+        "--skip-gnn",
+        action="store_true",
+        help="Skip GNN training (for environments without PyTorch/PyG)",
+    )
     return parser.parse_args()
 
 
@@ -68,6 +73,7 @@ if __name__ == "__main__":
         data_path=args.data,
         graph_path=args.graph,
         output_dir=args.output,
+        skip_gnn=args.skip_gnn,
     )
 
     print(f"\n{'='*60}")
