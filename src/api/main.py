@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="SentinelIQ API",
     description="Backend API for SentinelIQ fraud detection and investigation platform.",
-    version="0.2.0",
+    version="0.3.0",
 )
 
 # ── CORS ─────────────────────────────────────────────────────────────────────
@@ -51,7 +51,7 @@ app.include_router(query.router, prefix="/query", tags=["Query"])
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 def health_check():
     """System health check endpoint."""
-    return {"status": "ok", "version": "0.2.0"}
+    return {"status": "ok", "version": "0.3.0"}
 
 
 # ── Background pipeline runner ────────────────────────────────────────────────

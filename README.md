@@ -22,11 +22,13 @@
 - [Deployment](#deployment)
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
+- [Testing](#testing)
 - [Roadmap](#roadmap)
 - [Business Value](#business-value)
 - [Part of the IQ Portfolio](#part-of-the-iq-portfolio)
 - [Contributing](#contributing)
 - [About](#about)
+- [Version](#version)
 - [License](#license)
 
 ---
@@ -172,10 +174,11 @@ flowchart TB
 | Graph features | NetworkX |
 | Data generation | Faker, pandas |
 | Imbalanced ML | imbalanced-learn (SMOTE) |
+| Visualisation | Plotly, Matplotlib, Seaborn, PyVis |
 | Backend API | FastAPI, Uvicorn |
 | Frontend | Streamlit, Plotly |
 | Deployment | Docker, Render, Hugging Face Spaces |
-| Dev tools | python-dotenv, pydantic, schedule |
+| Dev tools | python-dotenv, pydantic, APScheduler |
 
 ---
 
@@ -189,7 +192,8 @@ sentineliq/
 │   ├── processed/                    # Cleaned, feature-engineered data
 │   ├── synthetic/                    # Generated transaction + account data
 │   ├── graphs/                       # Serialised account-device-IP graphs
-│   └── models/                       # Saved model artifacts
+│   ├── models/                       # Saved model artifacts
+│   └── review_queue.json             # Persistent review queue (generated at runtime)
 │
 ├── src/
 │   ├── llm/
@@ -246,6 +250,8 @@ sentineliq/
 │       │   └── query.py              # Natural language query view
 │       └── components/               # Reusable UI components
 │
+├── lib/                              # Frontend JS libraries (vis.js, tom-select)
+│
 ├── scripts/
 │   ├── setup_project.py              # Environment validation + directory setup
 │   ├── generate_data.py              # Synthetic data generation (Faker)
@@ -259,13 +265,16 @@ sentineliq/
 │   ├── test_scorer.py
 │   ├── test_gnn.py
 │   ├── test_agent.py
-│   └── test_review.py
+│   ├── test_review.py
+│   ├── test_api.py
+│   └── test_pipeline.py
 │
 ├── notebooks/
 │   ├── 01_rag_exploration.ipynb      # RAG pipeline experiments
 │   ├── 02_ensemble_training.ipynb    # Model training walkthrough
 │   └── 03_graph_features.ipynb       # Graph feature engineering
 │
+├── CONTRIBUTING.md
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
@@ -478,13 +487,13 @@ from src.review.feedback import ReviewFeedbackHandler
 
 handler = ReviewFeedbackHandler()
 
-handler.log_decision(
-    case_id="CASE-2041",
-    decision="escalate",
-    reviewer_notes="Confirmed synthetic identity ring — linked to 3 other open cases",
-    outcome_label="confirmed_fraud"
-)
-# Decision stored → ChromaDB updated → future similar cases retrieve this outcome
+handler.log_decision({
+    "case_id": "CASE-2041",
+    "decision": "escalate",
+    "reviewer_notes": "Confirmed synthetic identity ring — linked to 3 other open cases",
+})
+# Decision stored → outcome mapped internally → ChromaDB updated
+# → future similar cases retrieve this outcome
 ```
 
 ### FastAPI Endpoints
@@ -505,7 +514,7 @@ handler.log_decision(
 ```bash
 curl -X POST http://localhost:8000/cases/CASE-2041/review \
   -H "Content-Type: application/json" \
-  -d '{"decision": "escalate", "reviewer_notes": "Confirmed fraud ring"}'
+  -d '{"case_id": "CASE-2041", "decision": "escalate", "reviewer_notes": "Confirmed fraud ring"}'
 ```
 
 ---
@@ -523,9 +532,12 @@ The ensemble model is trained on engineered features from synthetic transaction,
 | `device_change_count` | Number of device changes in past 30 days |
 | `ip_country_mismatch` | Whether IP country differs from account country |
 | `velocity_1hr` | Number of transactions in past hour |
-| `graph_degree_centrality` | Account's centrality in account-device-IP graph |
 | `avg_txn_amount_30d` | Average transaction amount over past 30 days |
 | `failed_login_count_24hr` | Failed login attempts in past 24 hours |
+| `degree_centrality` | Account's centrality in account-device-IP graph |
+| `component_size` | Size of the account's connected component in the graph |
+| `shared_device_count` | Number of devices shared with other accounts |
+| `ip_reuse_count` | Number of IP addresses shared with other accounts |
 
 **Train the model:**
 
@@ -630,6 +642,14 @@ The table below maps each current component to its production equivalent and the
 
 ### Docker (local)
 
+> **Prerequisites:** Before running Docker, generate data and train models on the host first:
+> ```bash
+> python scripts/generate_data.py
+> python scripts/train_model.py
+> python scripts/ingest_and_run.py --embed-cases
+> ```
+> **Note:** Ollama must be running on the **host machine** (not inside Docker). The containers connect to it via `host.docker.internal`.
+
 ```bash
 docker-compose up --build
 ```
@@ -673,6 +693,7 @@ All configuration is via environment variables. Copy `.env.example` to `.env` be
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5:7b-instruct
 OLLAMA_EMBED_MODEL=nomic-embed-text
+LLM_TEMPERATURE=0.0                           # 0.0 = deterministic (recommended)
 
 # Vector store
 CHROMA_PERSIST_DIR=./data/chroma
@@ -693,6 +714,10 @@ AGENT_RUN_INTERVAL=15
 # API
 API_HOST=0.0.0.0
 API_PORT=8000
+DASHBOARD_URL=http://localhost:8501            # CORS origin for Streamlit
+
+# Data paths (override if running from a non-standard working directory)
+SCORED_EVENTS_PATH=./data/processed/scored_events.json
 ```
 
 ---
@@ -781,7 +806,9 @@ Each project shares a common engineering philosophy: local AI inference, RAG-pow
 
 ## Contributing
 
-Contributions are welcome! Please:
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines.
+
+Quick summary:
 
 1. **Open an issue** to discuss your proposed change before starting work
 2. **Fork the repo** and create a feature branch (`feature/your-feature-name`)
